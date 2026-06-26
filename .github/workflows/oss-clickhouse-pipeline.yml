@@ -1,0 +1,121 @@
+name: OSS to ClickHouse Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_import:
+        description: "Import OSS raw data into ClickHouse"
+        required: true
+        type: boolean
+        default: true
+      daily_limit:
+        description: "Number of daily files to import for smoke runs; use 0 for full import"
+        required: true
+        default: "5"
+      run_compute:
+        description: "Compute price index after import"
+        required: true
+        type: boolean
+        default: true
+      upload_result:
+        description: "Upload generated result files to OSS result/"
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from GitHub Secrets
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          OSS_ACCESS_KEY_ID=${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET=${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_ENDPOINT=${{ secrets.OSS_ENDPOINT }}
+          OSS_BUCKET=${{ secrets.OSS_BUCKET }}
+          CLICKHOUSE_HOST=${{ secrets.CLICKHOUSE_HOST }}
+          CLICKHOUSE_PORT=${{ secrets.CLICKHOUSE_PORT }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
+          CLICKHOUSE_SECURE=${{ secrets.CLICKHOUSE_SECURE }}
+          CLICKHOUSE_VERIFY=${{ secrets.CLICKHOUSE_VERIFY }}
+          EOF
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          required = [
+              "OSS_ACCESS_KEY_ID",
+              "OSS_ACCESS_KEY_SECRET",
+              "OSS_ENDPOINT",
+              "OSS_BUCKET",
+              "CLICKHOUSE_HOST",
+              "CLICKHOUSE_PORT",
+              "CLICKHOUSE_USER",
+              "CLICKHOUSE_PASSWORD",
+              "CLICKHOUSE_DB",
+          ]
+          values = {}
+          for line in Path(".env").read_text(encoding="utf-8").splitlines():
+              if "=" in line:
+                  key, value = line.split("=", 1)
+                  values[key] = value
+          missing = [key for key in required if not values.get(key)]
+          if missing:
+              raise SystemExit("Missing GitHub Secrets: " + ", ".join(missing))
+          print("Required secrets are present.")
+          PY
+
+      - name: Compile Python scripts
+        run: python -m py_compile scripts/*.py
+
+      - name: Initialize ClickHouse schema
+        run: python scripts/init_clickhouse.py
+
+      - name: Import OSS data into ClickHouse
+        if: ${{ inputs.run_import }}
+        shell: bash
+        run: |
+          if [ "${{ inputs.daily_limit }}" = "0" ]; then
+            python scripts/load_from_oss_to_clickhouse.py --full
+          else
+            python scripts/load_from_oss_to_clickhouse.py --limit "${{ inputs.daily_limit }}"
+          fi
+
+      - name: Compute price index
+        if: ${{ inputs.run_compute }}
+        run: python scripts/compute_index.py
+
+      - name: Generate charts and CSV
+        if: ${{ inputs.run_compute }}
+        run: python scripts/plot_index.py
+
+      - name: Upload result files to OSS
+        if: ${{ inputs.upload_result && inputs.run_compute }}
+        run: python scripts/upload_result_to_oss.py
+
+      - name: Upload result artifacts
+        if: ${{ inputs.run_compute }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-index-results
+          path: output/

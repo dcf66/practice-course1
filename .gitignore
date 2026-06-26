@@ -1,0 +1,26 @@
+# Secrets and local environment
+.env
+*.env
+!.env.example
+AccessKey.txt
+*AccessKey*
+
+# Large data and generated outputs
+data/
+output/
+*.csv
+*.png
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Editor/system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
