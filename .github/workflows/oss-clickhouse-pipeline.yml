@@ -32,16 +32,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        shell: powershell
+        run: py -m pip install -r requirements.txt
 
       - name: Create .env from GitHub Secrets
-        shell: pwsh
+        shell: powershell
         run: |
           @"
           OSS_ACCESS_KEY_ID=${{ secrets.OSS_ACCESS_KEY_ID }}
@@ -58,7 +54,7 @@ jobs:
           "@ | Set-Content -Path .env -Encoding utf8
 
       - name: Validate required secrets
-        shell: pwsh
+        shell: powershell
         run: |
           $required = @(
             "OSS_ACCESS_KEY_ID",
@@ -84,35 +80,39 @@ jobs:
           Write-Host "Required secrets are present."
 
       - name: Compile Python scripts
-        shell: pwsh
+        shell: powershell
         run: |
           $files = Get-ChildItem scripts -Filter *.py | ForEach-Object { $_.FullName }
-          python -m py_compile @files
+          py -m py_compile @files
 
       - name: Initialize ClickHouse schema
-        run: python scripts/init_clickhouse.py
+        shell: powershell
+        run: py scripts\init_clickhouse.py
 
       - name: Import OSS data into ClickHouse
         if: ${{ inputs.run_import }}
-        shell: pwsh
+        shell: powershell
         run: |
           if ("${{ inputs.daily_limit }}" -eq "0") {
-            python scripts/load_from_oss_to_clickhouse.py --full
+            py scripts\load_from_oss_to_clickhouse.py --full
           } else {
-            python scripts/load_from_oss_to_clickhouse.py --limit "${{ inputs.daily_limit }}"
+            py scripts\load_from_oss_to_clickhouse.py --limit "${{ inputs.daily_limit }}"
           }
 
       - name: Compute price index
         if: ${{ inputs.run_compute }}
-        run: python scripts/compute_index.py
+        shell: powershell
+        run: py scripts\compute_index.py
 
       - name: Generate charts and CSV
         if: ${{ inputs.run_compute }}
-        run: python scripts/plot_index.py
+        shell: powershell
+        run: py scripts\plot_index.py
 
       - name: Upload result files to OSS
         if: ${{ inputs.upload_result && inputs.run_compute }}
-        run: python scripts/upload_result_to_oss.py
+        shell: powershell
+        run: py scripts\upload_result_to_oss.py
 
       - name: Upload result artifacts
         if: ${{ inputs.run_compute }}
