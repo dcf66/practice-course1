@@ -79,6 +79,25 @@ jobs:
           }
           Write-Host "Required secrets are present."
 
+      - name: Diagnose ClickHouse network
+        shell: powershell
+        run: |
+          $values = @{}
+          Get-Content .env | ForEach-Object {
+            if ($_ -match "^([^=]+)=(.*)$") {
+              $values[$Matches[1]] = $Matches[2]
+            }
+          }
+          $hostName = $values["CLICKHOUSE_HOST"]
+          $port = [int]$values["CLICKHOUSE_PORT"]
+          $secure = $values["CLICKHOUSE_SECURE"]
+          $verify = $values["CLICKHOUSE_VERIFY"]
+          Write-Host "ClickHouse host suffix: $($hostName.Substring([Math]::Max(0, $hostName.Length - 32)))"
+          Write-Host "ClickHouse port: $port"
+          Write-Host "ClickHouse secure: $secure"
+          Write-Host "ClickHouse verify: $verify"
+          Test-NetConnection -ComputerName $hostName -Port $port
+
       - name: Compile Python scripts
         shell: powershell
         run: |
