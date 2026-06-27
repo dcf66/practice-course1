@@ -92,11 +92,21 @@ jobs:
           $port = [int]$values["CLICKHOUSE_PORT"]
           $secure = $values["CLICKHOUSE_SECURE"]
           $verify = $values["CLICKHOUSE_VERIFY"]
+          $publicIp = "unknown"
+          try {
+            $publicIp = Invoke-RestMethod -Uri "https://api.ipify.org?format=text" -TimeoutSec 10
+          } catch {
+            Write-Warning "Could not detect runner public IP: $($_.Exception.Message)"
+          }
           Write-Host "ClickHouse host suffix: $($hostName.Substring([Math]::Max(0, $hostName.Length - 32)))"
           Write-Host "ClickHouse port: $port"
           Write-Host "ClickHouse secure: $secure"
           Write-Host "ClickHouse verify: $verify"
-          Test-NetConnection -ComputerName $hostName -Port $port
+          Write-Host "Runner public IP: $publicIp"
+          $result = Test-NetConnection -ComputerName $hostName -Port $port
+          if (-not $result.TcpTestSucceeded) {
+            throw "Cannot reach ClickHouse at configured host/port. Add the runner public IP to the ClickHouse whitelist/security group, or fix CLICKHOUSE_HOST/CLICKHOUSE_PORT/CLICKHOUSE_SECURE."
+          }
 
       - name: Compile Python scripts
         shell: powershell

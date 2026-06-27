@@ -70,6 +70,15 @@ daily_limit=0
 
 如果工作流使用 GitHub 托管 Runner，访问云 ClickHouse 的公网 IP 不是本机 `120.199.34.116`，而是 GitHub Runner 的出口 IP。因此当前只允许本机 IP 的白名单会导致 Actions 连接失败。
 
+如果工作流使用本机 self-hosted runner，访问云 ClickHouse 的出口 IP 仍然取决于当前宽带公网出口。这个 IP 可能随网络、重拨或运营商 NAT 变化。若日志中出现：
+
+```text
+ConnectionRefusedError: [WinError 10061]
+HTTPSConnectionPool(...): Failed to establish a new connection
+```
+
+优先检查 Actions 日志里 `Diagnose ClickHouse network` 步骤打印的 `Runner public IP`，并将该 IP 加入阿里云 ClickHouse 的白名单或安全组。当前仓库的 workflow 会在 TCP 端口连不通时提前失败，避免拖到 `init_clickhouse.py` 才输出很长的 Python 栈。
+
 可选处理方式：
 
 1. 使用本机或云服务器作为 GitHub self-hosted runner，使运行环境出口 IP 固定。
