@@ -18,7 +18,7 @@ except (AttributeError, ValueError):
 
 # 加载项目根目录下的 .env（本文件在 scripts/，根目录是上一级）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", encoding="utf-8-sig")
 
 
 def get_bucket() -> oss2.Bucket:

@@ -39,7 +39,7 @@ jobs:
       - name: Create .env from GitHub Secrets
         shell: powershell
         run: |
-          @"
+          $envContent = @"
           OSS_ACCESS_KEY_ID=${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET=${{ secrets.OSS_ACCESS_KEY_SECRET }}
           OSS_ENDPOINT=${{ secrets.OSS_ENDPOINT }}
@@ -51,7 +51,12 @@ jobs:
           CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
           CLICKHOUSE_SECURE=${{ secrets.CLICKHOUSE_SECURE }}
           CLICKHOUSE_VERIFY=${{ secrets.CLICKHOUSE_VERIFY }}
-          "@ | Set-Content -Path .env -Encoding utf8
+          "@
+          [System.IO.File]::WriteAllText(
+            (Join-Path (Get-Location) ".env"),
+            $envContent.TrimStart(),
+            [System.Text.UTF8Encoding]::new($false)
+          )
 
       - name: Validate required secrets
         shell: powershell
@@ -70,7 +75,8 @@ jobs:
           $values = @{}
           Get-Content .env | ForEach-Object {
             if ($_ -match "^([^=]+)=(.*)$") {
-              $values[$Matches[1]] = $Matches[2]
+              $name = $Matches[1].TrimStart([char]0xFEFF)
+              $values[$name] = $Matches[2]
             }
           }
           $missing = $required | Where-Object { -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace($values[$_]) }
@@ -85,7 +91,8 @@ jobs:
           $values = @{}
           Get-Content .env | ForEach-Object {
             if ($_ -match "^([^=]+)=(.*)$") {
-              $values[$Matches[1]] = $Matches[2]
+              $name = $Matches[1].TrimStart([char]0xFEFF)
+              $values[$name] = $Matches[2]
             }
           }
           $hostName = $values["CLICKHOUSE_HOST"]
