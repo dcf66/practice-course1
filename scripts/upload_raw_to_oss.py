@@ -28,7 +28,6 @@ except (AttributeError, ValueError):
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
-DAILY_DIR = DATA_DIR / "daily_price"
 
 # 从文件名 daily_prices_20250517.csv 里抠出日期 20250517
 DATE_RE = re.compile(r"daily_prices_(\d{8})\.csv$")
@@ -51,14 +50,21 @@ def main():
         "--limit", type=int, default=None,
         help="只上传前 N 个每日价格文件（用于先小范围测试）",
     )
+    parser.add_argument(
+        "--data-dir", type=Path, default=DATA_DIR,
+        help="本地原始数据目录，默认使用项目内 data/；可指定上级完整数据目录",
+    )
     args = parser.parse_args()
+    data_dir = args.data_dir.resolve()
+    daily_dir = data_dir / "daily_price"
 
     bucket = get_bucket()
     print(f"目标 Bucket: {bucket.bucket_name}\n")
+    print(f"本地数据目录: {data_dir}\n")
 
     # 1) 两个维表
     for name in ["products.csv", "categories.csv"]:
-        local = DATA_DIR / name
+        local = data_dir / name
         if not local.exists():
             print(f"[警告] 找不到 {local}，跳过")
             continue
@@ -66,7 +72,7 @@ def main():
         print(f"[{status:4}] raw/{name}")
 
     # 2) 每日价格文件
-    daily_files = sorted(DAILY_DIR.glob("daily_prices_*.csv"))
+    daily_files = sorted(daily_dir.glob("daily_prices_*.csv"))
     if args.limit is not None:
         daily_files = daily_files[: args.limit]
 
